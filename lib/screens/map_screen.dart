@@ -60,7 +60,7 @@ class _MapScreenState extends State<MapScreen> {
 
   void _openPlace(Place p) {
     final d = const Distance().as(LengthUnit.Meter, _center, p.pos).round();
-    final distStr = d < 1000 ? '${d} m' : '${(d / 1000).toStringAsFixed(1)} km';
+    final distStr = d < 1000 ? '$d m' : '${(d / 1000).toStringAsFixed(1)} km';
     LumiOverlay.set(
       emotion: LumiEmotion.pointing,
       speech: '${p.name} - $distStr',

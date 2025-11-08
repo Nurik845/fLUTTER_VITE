@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 import 'lumi_widget.dart';
 import 'lumi_alive.dart';
 import '../lumi/lumi_brain.dart';
@@ -10,6 +11,7 @@ class LumiOverlayController extends ChangeNotifier {
   LumiEmotion emotion = LumiEmotion.neutral;
   void Function(Offset to, {Duration duration, Curve curve})? _animator;
   bool wander = true;
+  bool lowPowerMode = false; // reduces trail and wander frequency
 
   void setVisible(bool v) {
     visible = v;
@@ -63,6 +65,10 @@ class _GlobalLumiOverlayState extends State<GlobalLumiOverlay>
     with SingleTickerProviderStateMixin {
   List<Offset>? _trail;
   Offset _gaze = Offset.zero;
+  final int _maxTrailDefault = 24;
+  final int _maxTrailLowPower = 12;
+  final Duration _wanderIntervalDefault = Duration(seconds: 12);
+  final Duration _wanderIntervalLowPower = Duration(seconds: 18);
   @override
   void initState() {
     super.initState();
@@ -102,13 +108,16 @@ class _GlobalLumiOverlayState extends State<GlobalLumiOverlay>
   }
 
   void _startWander() async {
+    final rand = math.Random();
     while (mounted) {
-      await Future.delayed(const Duration(seconds: 12));
+      final wait = widget.controller.lowPowerMode ? _wanderIntervalLowPower : _wanderIntervalDefault;
+      await Future.delayed(wait);
       if (!widget.controller.wander || !widget.controller.visible) continue;
-      final randX = (0.15 + (0.7) * (DateTime.now().millisecond % 100) / 100);
-      final randY = (0.2 + (0.6) * (DateTime.now().second % 60) / 60);
-      final target = Offset(randX, randY);
-      widget.controller.animateTo(target);
+      // avoid wandering while "speaking" bubble shown to reduce jank
+      if (widget.controller.speech != null && widget.controller.speech!.isNotEmpty) continue;
+      final randX = 0.15 + 0.7 * rand.nextDouble();
+      final randY = 0.2 + 0.6 * rand.nextDouble();
+      widget.controller.animateTo(Offset(randX, randY));
     }
   }
 
@@ -119,9 +128,10 @@ class _GlobalLumiOverlayState extends State<GlobalLumiOverlay>
     // Trail painter using recent anchors
     _trail ??= <Offset>[];
     final current = widget.controller.anchor;
-    if (_trail!.isEmpty || _trail!.last != current) {
+    if (_trail!.isEmpty || (_trail!.last - current).distance > 0.002) {
       _trail!.add(current);
-      if (_trail!.length > 24) _trail!.removeAt(0);
+      final maxTrail = widget.controller.lowPowerMode ? _maxTrailLowPower : _maxTrailDefault;
+      if (_trail!.length > maxTrail) _trail!.removeAt(0);
     }
     final pos = Offset(
       size.width * widget.controller.anchor.dx - 90,
@@ -132,7 +142,7 @@ class _GlobalLumiOverlayState extends State<GlobalLumiOverlay>
           IgnorePointer(
             ignoring: true,
             child: Positioned.fill(
-              child: CustomPaint(painter: _TrailPainter(_trail!)),
+              child: RepaintBoundary(child: CustomPaint(painter: _TrailPainter(_trail!))),
             ),
           ),
           Positioned(
@@ -157,7 +167,7 @@ class _GlobalLumiOverlayState extends State<GlobalLumiOverlay>
                 Offset(nx.clamp(0.0, 1.0), ny.clamp(0.0, 1.0)),
               );
             },
-              child: Column(
+              child: RepaintBoundary(child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   if (widget.controller.speech != null)
@@ -193,7 +203,7 @@ class _GlobalLumiOverlayState extends State<GlobalLumiOverlay>
                     ),
                   ),
                 ],
-              ),
+              )),
             ),
           ),
         ],

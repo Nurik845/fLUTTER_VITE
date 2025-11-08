@@ -57,7 +57,7 @@ class L {
       'tabDiagnose': 'Диагностика',
       'tabMap': 'Карта',
       'tabEmergency': 'Жедел көмек',
-      'tabSupport': 'Қолдау',
+      'tabSupport': 'Көмек',
       'tabSettings': 'Баптау',
       'tabWellness': 'Денсаулық',
       'hello': 'Сәлем! Мен LUMI.',
@@ -91,7 +91,7 @@ class L {
       'tabDiagnose': 'Диагностика',
       'tabMap': 'Карта',
       'tabEmergency': 'Экстренно',
-      'tabSupport': 'Поддержка',
+      'tabSupport': 'Помощь',
       'tabSettings': 'Настройки',
       'tabWellness': 'Здоровье',
       'hello': 'Привет! Я LUMI.',
@@ -125,7 +125,7 @@ class L {
       'tabDiagnose': 'Diagnose',
       'tabMap': 'Map',
       'tabEmergency': 'Emergency',
-      'tabSupport': 'Support',
+      'tabSupport': 'Care',
       'tabSettings': 'Settings',
       'tabWellness': 'Wellness',
       'hello': 'Hi! I am LUMI.',
@@ -155,4 +155,3 @@ class L {
     },
   };
 }
-

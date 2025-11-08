@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import '../l10n/localization.dart';
 import '../services/tts_service.dart';
 import '../services/stt_service.dart';
-import '../widgets/lumi_widget.dart';
 import '../widgets/lumi_overlay.dart';
+import '../widgets/lumi_widget.dart';
 import '../widgets/lumi_aware_button.dart';
 import 'ar_lumi_screen.dart';
+import '../services/profile_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, this.onCommand});
@@ -18,11 +19,14 @@ class _HomeScreenState extends State<HomeScreen> {
   bool speaking = false;
   bool listening = false;
   String lastHeard = '';
+  List<String> _family = [];
+  String _plan = 'basic';
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _speakIntro());
+    _loadFamily();
   }
 
   Future<void> _speakIntro() async {
@@ -32,6 +36,16 @@ class _HomeScreenState extends State<HomeScreen> {
     await TtsService.instance.speak(l.lumiIntro);
     if (mounted) setState(() => speaking = false);
     LumiOverlay.set(emotion: LumiEmotion.neutral, speech: null);
+  }
+
+  Future<void> _loadFamily() async {
+    final fam = await ProfileService.getFamily();
+    final plan = await ProfileService.getPlan();
+    if (!mounted) return;
+    setState(() {
+      _family = fam;
+      _plan = plan;
+    });
   }
 
   void _handleStt(String text, bool finalResult) {
@@ -98,6 +112,10 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
           const SizedBox(height: 16),
           _tipsCard(),
+          const SizedBox(height: 16),
+          _familyCard(),
+          const SizedBox(height: 16),
+          _subscriptionCardFinal(),
         ],
       ),
     );
@@ -147,9 +165,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _tipsCard() {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: const [
+      child: const Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Daily tips'),
           SizedBox(height: 8),
           Text('• Пей воду: 2 литра в день\n• Дыхание 4–7–8 перед сном\n• 10 минут прогулки после еды'),
@@ -157,5 +175,108 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-}
 
+  int _familyLimit() {
+    switch (_plan) {
+      case 'vip':
+        return 10;
+      case 'premium':
+        return 25;
+      default:
+        return 5;
+    }
+  }
+
+  Widget _familyCard() {
+    final limit = _familyLimit();
+    final canAdd = _family.length < limit;
+    final nameCtl = TextEditingController();
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Family mode'),
+          const SizedBox(height: 8),
+          Text('Members: ${_family.length} / $limit'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _family
+                .map((m) => Chip(
+                      label: Text(m),
+                      onDeleted: () async {
+                        final next = [..._family]..remove(m);
+                        await ProfileService.setFamily(next);
+                        setState(() => _family = next);
+                      },
+                    ))
+                .toList(),
+          ),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: TextField(controller: nameCtl, decoration: const InputDecoration(hintText: 'Имя члена семьи'))),
+            const SizedBox(width: 8),
+            FilledButton.icon(
+              onPressed: canAdd
+                  ? () async {
+                      final v = nameCtl.text.trim();
+                      if (v.isEmpty) return;
+                      final next = [..._family, v];
+                      await ProfileService.setFamily(next);
+                      setState(() {
+                        _family = next;
+                        nameCtl.clear();
+                      });
+                    }
+                  : null,
+              icon: const Icon(Icons.person_add_alt),
+              label: const Text('Добавить'),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          const Text('LUMI будет ежедневно интересоваться их самочувствием и напоминать о важном.'),
+        ]),
+      ),
+    );
+  }
+
+  Widget _subscriptionCardFinal() {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Подписки'),
+          const SizedBox(height: 8),
+          Text('Текущий план: ${_plan.toUpperCase()}'),
+          const SizedBox(height: 8),
+          _planTile('basic', 'Бесплатный — 0 ₸', 'До 5 членов семьи, базовый ИИ'),
+          _planTile('vip', 'VIP — 2 490 ₸/мес', 'До 10 членов семьи, улучшенный ИИ (ChatGPT+Grok), приоритетные ответы, −5% на страхование*'),
+          _planTile('premium', 'Premium — 4 990 ₸/мес', 'До 25 членов семьи, расширенный ИИ и анализ фото, приоритет x2, −10% на страхование*'),
+          const SizedBox(height: 8),
+          const Text('* цены и скидки демонстрационные; условия зависят от партнёров и региона'),
+        ]),
+      ),
+    );
+  }
+
+  Widget _planTile(String id, String title, String subtitle) {
+    return RadioListTile<String>(
+      value: id,
+      groupValue: _plan,
+      onChanged: (v) async {
+        if (v == null) return;
+        await ProfileService.setPlan(v);
+        setState(() => _plan = v);
+        await _loadFamily();
+      },
+      title: Text(title),
+      subtitle: Text(subtitle),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+      isThreeLine: true,
+      controlAffinity: ListTileControlAffinity.leading,
+    );
+  }
+}
